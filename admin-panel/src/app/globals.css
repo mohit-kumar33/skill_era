@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@theme {
+  --color-app-bg: #0F0A1A;
+  --color-app-card: #151221;
+  --color-app-cardBorder: #251E3A;
+  --color-app-highlightCardFrom: #221844;
+  --color-app-highlightCardTo: #150F2D;
+  --color-app-highlightBorder: #322359;
+
+  --color-accent-goldBg: #241A22;
+  --color-accent-goldText: #E8C587;
+  --color-accent-purpleBg: #181335;
+  --color-accent-purpleText: #9176DD;
+  --color-accent-cyanBg: #112024;
+  --color-accent-cyanText: #32D6A5;
+
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #8A849F;
+
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.5rem;
+}
+
+:root {
+  --background: #0F0A1A;
+  --foreground: #FFFFFF;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+@layer components {
+  .form-input {
+    @apply w-full rounded-xl border border-zinc-700 bg-zinc-800/50 px-4 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500;
+  }
+}
