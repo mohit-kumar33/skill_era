@@ -47,11 +47,11 @@ services:
       - key: TURNSTILE_SECRET_KEY
         sync: false
 
+databases:
   # ─────────────────────────────────────────────────────────
   # Managed PostgreSQL Database
   # ─────────────────────────────────────────────────────────
-  - type: psql
-    name: apex-postgres
+  - name: apex-postgres
     plan: starter
     region: singapore
     postgresMajorVersion: 16
