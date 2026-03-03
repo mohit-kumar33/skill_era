@@ -74,9 +74,12 @@ export const logger = pino({
         service: 'skill-era-api',
         env: process.env.NODE_ENV,
     },
-    formatters: {
-        level: (label: string) => ({ level: label }),
-    },
+    // Only apply formatters in development to avoid transport conflicts in production
+    ...(isProduction ? {} : {
+        formatters: {
+            level: (label: string) => ({ level: label }),
+        },
+    }),
     timestamp: pino.stdTimeFunctions.isoTime,
     // Redact sensitive fields from logs
     redact: {
