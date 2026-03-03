@@ -41,7 +41,7 @@ export async function runInTransaction<T>(
             await client.query('COMMIT');
             return result;
         } catch (err: unknown) {
-            await client.query('ROLLBACK').catch((rollbackErr) => {
+            await client.query('ROLLBACK').catch((rollbackErr: unknown) => {
                 logger.error({ err: rollbackErr }, 'Failed to rollback transaction');
             });
 
@@ -92,7 +92,7 @@ export async function runInSerializableTransaction<T>(
         await client.query('COMMIT');
         return result;
     } catch (err: unknown) {
-        await client.query('ROLLBACK').catch((rollbackErr) => {
+        await client.query('ROLLBACK').catch((rollbackErr: unknown) => {
             logger.error({ err: rollbackErr }, 'Failed to rollback serializable transaction');
         });
         throw err;

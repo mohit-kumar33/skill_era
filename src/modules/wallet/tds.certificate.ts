@@ -84,7 +84,7 @@ export async function generateTdsCertificate(
             [userId, fy.start, fy.end],
         );
 
-        const deductions = result.rows.map(r => ({
+        const deductions = result.rows.map((r: any) => ({
             withdrawalId: r.withdrawal_id,
             date: r.withdrawal_date.toISOString(),
             grossAmount: r.gross_amount?.toString() ?? '0',
@@ -93,9 +93,9 @@ export async function generateTdsCertificate(
             tdsRate: 0.30,
         }));
 
-        const totalGross = deductions.reduce((sum, d) => sum + parseFloat(d.grossAmount), 0);
-        const totalTds = deductions.reduce((sum, d) => sum + parseFloat(d.tdsAmount), 0);
-        const totalNet = deductions.reduce((sum, d) => sum + parseFloat(d.netAmount), 0);
+        const totalGross = deductions.reduce((sum: number, d: any) => sum + parseFloat(d.grossAmount), 0);
+        const totalTds = deductions.reduce((sum: number, d: any) => sum + parseFloat(d.tdsAmount), 0);
+        const totalNet = deductions.reduce((sum: number, d: any) => sum + parseFloat(d.netAmount), 0);
 
         logger.info(
             { userId, financialYear, deductionCount: deductions.length },

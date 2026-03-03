@@ -102,7 +102,7 @@ export async function generateTdsReport(
                 totalGrossAmount: agg.total_gross_amount.toString(),
                 totalNetDisbursed: agg.total_net_disbursed.toString(),
             },
-            records: dataResult.rows.map(r => ({
+            records: dataResult.rows.map((r: any) => ({
                 withdrawalId: r.withdrawal_id,
                 userId: r.user_id,
                 mobile: r.mobile,
