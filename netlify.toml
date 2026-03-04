@@ -1,10 +1,6 @@
 [build]
   command = "npm run build"
-  publish = ".next"
   base = "user-frontend"
-
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
 
 # ─────────────────────────────────────────────────────────────
 # Next.js Headers (Security Hardening)
