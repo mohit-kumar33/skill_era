@@ -120,7 +120,7 @@ export async function buildApp() {
     });
 
     // ── Health check ────────────────────────────────────
-    app.get('/api/health', async (_request, reply) => {
+    app.get('/health', async (_request, reply) => {
         const dbHealthy = await checkDatabaseHealth();
 
         let redisHealthy = false;

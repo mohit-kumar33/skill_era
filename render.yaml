@@ -9,7 +9,7 @@ services:
     region: frankfurt # Free tier supported region
     buildCommand: npm install --include=dev && npx prisma db push --accept-data-loss && npm run build
     startCommand: npm run start
-    healthCheckPath: /api/health
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
