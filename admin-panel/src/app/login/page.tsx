@@ -8,10 +8,12 @@ import { z } from 'zod';
 import { Loader2, Trophy, AlertCircle } from 'lucide-react';
 import api from '@/lib/api';
 import type { ApiResponse, LoginResponse } from '@/lib/types';
+import { Turnstile } from '@marsidev/react-turnstile';
 
 const loginSchema = z.object({
     mobile: z.string().min(10, 'Mobile number required').max(15),
     password: z.string().min(1, 'Password required'),
+    cfTurnstileResponse: z.string().min(1, 'Captcha verification required'),
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
@@ -26,6 +28,7 @@ function LoginFormContent() {
     const {
         register,
         handleSubmit,
+        setValue,
         formState: { errors },
     } = useForm<LoginForm>({
         resolver: zodResolver(loginSchema),
@@ -38,7 +41,8 @@ function LoginFormContent() {
         try {
             await api.post<ApiResponse<LoginResponse>>('/auth/login', {
                 identifier: data.mobile,
-                password: data.password
+                password: data.password,
+                cfTurnstileResponse: data.cfTurnstileResponse,
             });
             // Cookies are set automatically by the backend
             router.push(redirect);
@@ -104,6 +108,18 @@ function LoginFormContent() {
                             />
                             {errors.password && (
                                 <p className="mt-1 text-xs text-red-400">{errors.password.message}</p>
+                            )}
+                        </div>
+
+                        <div className="flex flex-col items-center py-2">
+                            <Turnstile
+                                siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'}
+                                onSuccess={(token) => setValue('cfTurnstileResponse', token, { shouldValidate: true })}
+                                onError={() => setServerError('Captcha verification failed. Please refresh the page.')}
+                                options={{ theme: 'dark' }}
+                            />
+                            {errors.cfTurnstileResponse && (
+                                <p className="mt-1 text-xs text-red-400">{errors.cfTurnstileResponse.message}</p>
                             )}
                         </div>
                     </div>
