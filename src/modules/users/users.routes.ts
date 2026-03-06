@@ -27,4 +27,29 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
         const profile = await updateUserProfile(request.currentUser.userId, parsed.data);
         return reply.send(successResponse(profile, 'Profile updated'));
     });
+
+    // ── PUT /me/mobile ────────────────────────────────────
+    // Only allows setting the mobile number if it is currently undefined (e.g., Google OAuth signups)
+    app.put('/me/mobile', async (request, reply) => {
+        if (!request.currentUser) throw unauthorized();
+
+        // Import schema dynamically if not at top to avoid refactoring whole file here, but we can assume it's imported via Instruction
+        const { mobileSchema } = await import('./users.schema.js');
+        const { updateMobileNumber } = await import('./users.service.js');
+
+        const parsed = mobileSchema.safeParse(request.body);
+        if (!parsed.success) {
+            throw validationError(parsed.error.errors.map(e => e.message).join(', '));
+        }
+
+        try {
+            const profile = await updateMobileNumber(request.currentUser.userId, parsed.data.mobile);
+            return reply.send(successResponse(profile, 'Mobile number registered successfully'));
+        } catch (error: any) {
+            if (error.message.includes('already registered')) {
+                throw validationError(error.message);
+            }
+            throw error;
+        }
+    });
 }

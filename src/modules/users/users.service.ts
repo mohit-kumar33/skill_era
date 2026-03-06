@@ -79,3 +79,29 @@ export async function updateUserProfile(
 
     return getUserProfile(userId);
 }
+
+export async function updateMobileNumber(
+    userId: string,
+    mobile: string,
+): Promise<UserProfile> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw notFound('User');
+    if (user.accountStatus === 'frozen' || user.accountStatus === 'banned') throw accountFrozen();
+
+    if (user.mobile !== null) {
+        throw new Error('Mobile number is already set for this account');
+    }
+
+    // Check if another user already has this mobile
+    const existing = await prisma.user.findUnique({ where: { mobile } });
+    if (existing) {
+        throw new Error('This mobile number is already registered to another account');
+    }
+
+    await prisma.user.update({
+        where: { id: userId },
+        data: { mobile },
+    });
+
+    return getUserProfile(userId);
+}
