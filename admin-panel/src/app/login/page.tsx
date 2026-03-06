@@ -36,7 +36,10 @@ function LoginFormContent() {
         setIsSubmitting(true);
 
         try {
-            await api.post<ApiResponse<LoginResponse>>('/auth/login', data);
+            await api.post<ApiResponse<LoginResponse>>('/auth/login', {
+                identifier: data.mobile,
+                password: data.password
+            });
             // Cookies are set automatically by the backend
             router.push(redirect);
         } catch (err: unknown) {
