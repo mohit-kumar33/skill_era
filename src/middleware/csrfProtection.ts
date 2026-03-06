@@ -29,6 +29,7 @@ import { env } from '../config/env.js';
 const CSRF_EXCLUDED_PATHS = new Set([
     '/api/v1/auth/login',
     '/api/v1/auth/register',
+    '/api/v1/auth/google',
 ]);
 
 const CSRF_EXCLUDED_PREFIXES = [
