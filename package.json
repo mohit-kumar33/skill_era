@@ -36,7 +36,7 @@
     "node-cron": "^3.0.3",
     "nodemailer": "^8.0.1",
     "otplib": "^13.3.0",
-    "pg": "^8.13.0",
+    "pg": "^8.20.0",
     "pino": "^9.5.0",
     "pino-http-send": "^0.4.2",
     "pino-pretty": "^11.3.0",
