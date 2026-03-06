@@ -27,22 +27,35 @@ const CSRF_METHODS = ['post', 'put', 'patch', 'delete'];
 
 api.interceptors.request.use((config) => {
     if (config.method && CSRF_METHODS.includes(config.method.toLowerCase())) {
-        const csrfToken = getCookie('csrfToken');
+        let csrfToken = getCookie('csrfToken');
+
+        // Fallback to localStorage for cross-domain deployments where document.cookie is strictly isolated
+        if (!csrfToken && typeof window !== 'undefined') {
+            csrfToken = localStorage.getItem('csrfToken');
+        }
+
         if (csrfToken) {
             config.headers['X-CSRF-Token'] = csrfToken;
         } else if (process.env.NODE_ENV === 'development') {
             console.warn(
-                '[CSRF] csrfToken cookie not found. POST/PUT/PATCH/DELETE requests will fail with 403. ' +
-                'Ensure you are logged in and the backend sets the csrfToken cookie.',
+                '[CSRF] csrfToken not found in cookies or localStorage. POST/PUT/PATCH/DELETE requests will fail with 403. ' +
+                'Ensure you are logged in and the backend returns the csrfToken.',
             );
         }
     }
     return config;
 });
 
-// ── Response Error Interceptor ───────────────────────────
+// ── Response Success Interceptor (Extract CSRF Token) ────
 api.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        // If the backend returned a new CSRF token in the JSON body, save it for cross-domain usage
+        const newCsrf = response.data?.data?.csrfToken;
+        if (newCsrf && typeof window !== 'undefined') {
+            localStorage.setItem('csrfToken', newCsrf);
+        }
+        return response;
+    },
     (error) => {
         if (typeof window !== 'undefined') {
             if (!error.response) {

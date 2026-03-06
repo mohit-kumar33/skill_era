@@ -70,9 +70,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
         // Set cookies for web clients
         setAuthCookies(reply, result.tokens.accessToken, result.tokens.refreshToken);
-        setCsrfCookie(reply);
+        const csrfToken = setCsrfCookie(reply);
 
-        return reply.status(201).send(successResponse(result, 'Registration successful'));
+        return reply.status(201).send(successResponse({ ...result, csrfToken }, 'Registration successful'));
     });
 
     // ── POST /login ───────────────────────────────────────
@@ -98,9 +98,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
         // Set httpOnly cookies for web clients
         setAuthCookies(reply, result.tokens.accessToken, result.tokens.refreshToken);
-        setCsrfCookie(reply);
+        const csrfToken = setCsrfCookie(reply);
 
-        return reply.status(200).send(successResponse(result, 'Login successful'));
+        return reply.status(200).send(successResponse({ ...result, csrfToken }, 'Login successful'));
     });
 
     // ── POST /google ──────────────────────────────────────
@@ -117,9 +117,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
         // Set httpOnly cookies for web clients
         setAuthCookies(reply, result.tokens.accessToken, result.tokens.refreshToken);
-        setCsrfCookie(reply);
+        const csrfToken = setCsrfCookie(reply);
 
-        return reply.status(200).send(successResponse(result, 'Google Login successful'));
+        return reply.status(200).send(successResponse({ ...result, csrfToken }, 'Google Login successful'));
     });
 
     // ── POST /login/verify-2fa ────────────────────────────
@@ -156,9 +156,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
         // Set new cookies for web clients
         setAuthCookies(reply, tokens.accessToken, tokens.refreshToken);
-        setCsrfCookie(reply);
+        const csrfToken = setCsrfCookie(reply);
 
-        return reply.status(200).send(successResponse(tokens, 'Token refreshed'));
+        return reply.status(200).send(successResponse({ ...tokens, csrfToken }, 'Token refreshed'));
     });
 
     // ── POST /logout ────────────────────────────────────────────
