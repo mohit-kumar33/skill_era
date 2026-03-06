@@ -9,6 +9,7 @@ import { registerSchema, RegisterFormData } from '@/lib/schemas';
 import api from '@/lib/axios';
 import { Loader2 } from 'lucide-react';
 import { Turnstile } from '@marsidev/react-turnstile';
+import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 
 export default function RegisterPage() {
     const router = useRouter();
@@ -40,6 +41,33 @@ export default function RegisterPage() {
             setServerError(
                 err.response?.data?.message || 'Registration failed. Please try again.'
             );
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
+        if (!credentialResponse.credential) {
+            setServerError('Google Sign-Up failed. No credential received.');
+            return;
+        }
+
+        try {
+            setLoading(true);
+            setServerError('');
+
+            const res = await api.post('/auth/google', {
+                idToken: credentialResponse.credential
+            });
+
+            if (res.data?.data?.profileIncomplete) {
+                router.push('/complete-profile');
+            } else {
+                router.push('/dashboard');
+            }
+        } catch (error: unknown) {
+            const err = error as { response?: { status?: number; data?: { message?: string } } };
+            setServerError(err.response?.data?.message || 'Google Sign-Up failed. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -197,6 +225,23 @@ export default function RegisterPage() {
                     >
                         {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Create Account'}
                     </button>
+
+                    <div className="relative my-4">
+                        <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-gray-200"></div>
+                        </div>
+                        <div className="relative flex justify-center text-sm">
+                            <span className="px-2 bg-white text-gray-500">Or continue with</span>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-center w-full">
+                        <GoogleLogin
+                            onSuccess={handleGoogleSuccess}
+                            onError={() => setServerError('Google Sign-Up failed. Please try again.')}
+                            useOneTap
+                        />
+                    </div>
                 </form>
 
                 <div className="mt-6 text-center text-sm text-gray-500">

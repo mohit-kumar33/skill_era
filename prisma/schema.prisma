@@ -105,15 +105,22 @@ enum FraudFlagType {
   manual_flag
 }
 
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+}
+
 // ═══════════════════════════════════════════════════════
 // MODELS
 // ═══════════════════════════════════════════════════════
 
 model User {
   id                String        @id @default(uuid()) @db.Uuid
-  mobile            String        @unique @db.VarChar(20)
+  mobile            String?       @unique @db.VarChar(20)
   email             String?       @unique @db.VarChar(255)
-  passwordHash      String        @map("password_hash") @db.Text
+  passwordHash      String?       @map("password_hash") @db.Text
+  googleId          String?       @unique @map("google_id") @db.VarChar(255)
+  authProvider      AuthProvider  @default(LOCAL) @map("auth_provider")
   dateOfBirth       DateTime?     @map("date_of_birth") @db.Date
   ageVerified       Boolean       @default(false) @map("age_verified")
   accountStatus     AccountStatus @default(active) @map("account_status")

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import crypto from 'crypto';
-import { registerSchema, loginSchema, refreshSchema } from './auth.schema.js';
+import { registerSchema, loginSchema, refreshSchema, googleAuthSchema } from './auth.schema.js';
+import { googleLogin } from './google.service.js';
 import {
     registerUser,
     loginUser,

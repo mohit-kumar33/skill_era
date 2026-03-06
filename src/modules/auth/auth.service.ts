@@ -124,7 +124,7 @@ interface AuthTokens {
 interface AuthResult {
     user: {
         id: string;
-        mobile: string;
+        mobile: string | null;
         email: string | null;
         role: string;
         accountStatus: string;
@@ -240,6 +240,12 @@ export async function loginUser(
     if (user.accountStatus === 'banned' || user.accountStatus === 'suspended') {
         logLoginEvent(user.id, 'login_failed', meta, `account_${user.accountStatus}`);
         throw new AppError(ERROR_CODES.ACCOUNT_FROZEN, `Account is ${user.accountStatus}`, 403);
+    }
+
+    if (!user.passwordHash) {
+        await recordFailedLogin(identifier);
+        logLoginEvent(user.id, 'login_failed', meta, 'no_password_set');
+        throw unauthorized('Invalid credentials');
     }
 
     const isValid = await bcrypt.compare(input.password, user.passwordHash);
@@ -720,7 +726,7 @@ function logLoginEvent(
  * Issue a new token pair.
  * Optionally revokes and replaces an existing token (rotation flow).
  */
-async function issueTokens(payload: JwtPayload, replacesTokenId?: string): Promise<AuthTokens> {
+export async function issueTokens(payload: JwtPayload, replacesTokenId?: string): Promise<AuthTokens> {
     const accessToken = jwt.sign(
         { userId: payload.userId, role: payload.role, type: 'access' },
         env.JWT_ACCESS_SECRET,

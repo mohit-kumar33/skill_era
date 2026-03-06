@@ -20,7 +20,7 @@ import { prisma } from '../../config/prisma.js';
 export type NotificationChannel = 'sms' | 'email' | 'both';
 
 interface UserContact {
-    mobile: string;
+    mobile: string | null;
     email: string | null;
 }
 

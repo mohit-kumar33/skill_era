@@ -60,6 +60,9 @@ const envSchema = z.object({
     // Cloudflare Turnstile CAPTCHA Secret
     TURNSTILE_SECRET_KEY: z.string().default('1x0000000000000000000000000000000AA'),
 
+    // Google OAuth
+    GOOGLE_CLIENT_ID: z.string().optional(),
+
     // Slack alerting (optional — falls back to log if empty)
     SLACK_WEBHOOK_URL: z.string().url().optional(),
 

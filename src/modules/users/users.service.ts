@@ -4,7 +4,7 @@ import type { UpdateProfileInput } from './users.schema.js';
 
 export interface UserProfile {
     id: string;
-    mobile: string;
+    mobile: string | null;
     email: string | null;
     dateOfBirth: Date | null;
     ageVerified: boolean;

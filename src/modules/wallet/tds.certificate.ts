@@ -104,7 +104,7 @@ export async function generateTdsCertificate(
 
         return {
             userId,
-            userName: user.mobile,
+            userName: user.mobile || user.email || 'User',
             panNumber,
             financialYear,
             deductorName: 'Skill Era Gaming Pvt. Ltd.',
