@@ -6,7 +6,7 @@ export const updateProfileSchema = z.object({
 });
 
 export const mobileSchema = z.object({
-    mobile: z.string().length(10).regex(/^\d{10}$/, 'Mobile number must be exactly 10 digits'),
+    mobile: z.string().regex(/^\+91\d{10}$/, 'Mobile number must be +91 followed by 10 digits'),
 });
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;

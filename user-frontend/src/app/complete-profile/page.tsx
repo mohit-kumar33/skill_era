@@ -32,8 +32,9 @@ export default function CompleteProfilePage() {
         try {
             setServerError(null);
 
-            // Send the new mobile number to our new backend endpoint
-            await api.put('/users/me/mobile', data);
+            // Send the new mobile number to our new backend endpoint (prefixed with +91)
+            const payload = { ...data, mobile: `+91${data.mobile}` };
+            await api.put('/users/me/mobile', payload);
 
             // Refresh the user context so the app knows the profile is complete
             await queryClient.invalidateQueries({ queryKey: ['user'] });
