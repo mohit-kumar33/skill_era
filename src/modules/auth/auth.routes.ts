@@ -103,6 +103,25 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         return reply.status(200).send(successResponse(result, 'Login successful'));
     });
 
+    // ── POST /google ──────────────────────────────────────
+    app.post('/google', {
+        config: { rateLimit: RATE_LIMITS.login }, // Use login rate limit
+    }, async (request, reply) => {
+        const parsed = googleAuthSchema.safeParse(request.body);
+        if (!parsed.success) {
+            throw validationError(parsed.error.errors.map(e => e.message).join(', '));
+        }
+
+        const meta = { ip: request.ip, userAgent: request.headers['user-agent'] ?? 'unknown' };
+        const result = await googleLogin(parsed.data.idToken, meta);
+
+        // Set httpOnly cookies for web clients
+        setAuthCookies(reply, result.tokens.accessToken, result.tokens.refreshToken);
+        setCsrfCookie(reply);
+
+        return reply.status(200).send(successResponse(result, 'Google Login successful'));
+    });
+
     // ── POST /login/verify-2fa ────────────────────────────
     // Completes admin login after password + 2FA verification
     app.post('/login/verify-2fa', {
