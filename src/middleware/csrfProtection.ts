@@ -30,7 +30,6 @@ const CSRF_EXCLUDED_PATHS = new Set([
     '/api/v1/auth/login',
     '/api/v1/auth/register',
     '/api/v1/auth/google',
-    '/api/v1/users/me/mobile',
 ]);
 
 const CSRF_EXCLUDED_PREFIXES = [
@@ -54,7 +53,7 @@ export function generateCsrfToken(): string {
 export const CSRF_COOKIE_OPTIONS = {
     httpOnly: false,     // Frontend must be able to read this
     secure: env.NODE_ENV === 'production',
-    sameSite: 'strict' as const,
+    sameSite: env.NODE_ENV === 'production' ? 'none' as const : 'lax' as const,
     path: '/',
     maxAge: 24 * 60 * 60, // 24 hours
 };

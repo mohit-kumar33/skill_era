@@ -36,7 +36,7 @@ const login2FASchema = z.object({
 const COOKIE_BASE = {
     httpOnly: true,
     secure: env.NODE_ENV === 'production',
-    sameSite: 'strict' as const,
+    sameSite: env.NODE_ENV === 'production' ? 'none' as const : 'lax' as const,
     path: '/',
 };
 
