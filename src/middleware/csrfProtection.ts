@@ -30,6 +30,7 @@ const CSRF_EXCLUDED_PATHS = new Set([
     '/api/v1/auth/login',
     '/api/v1/auth/register',
     '/api/v1/auth/google',
+    '/api/v1/users/me/mobile',
 ]);
 
 const CSRF_EXCLUDED_PREFIXES = [
