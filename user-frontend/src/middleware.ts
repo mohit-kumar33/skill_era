@@ -4,21 +4,16 @@ import type { NextRequest } from 'next/server';
 const protectedRoutes = ['/dashboard', '/wallet', '/tournaments', '/withdraw'];
 
 export function middleware(request: NextRequest) {
-    const { pathname } = request.nextUrl;
-
-    // Check if route requires authentication
-    const isProtected = protectedRoutes.some((route) => pathname.startsWith(route));
-
-    if (isProtected) {
-        // Check for accessToken cookie (set by backend as httpOnly)
-        const hasAccessToken = request.cookies.has('accessToken');
-
-        if (!hasAccessToken) {
-            const loginUrl = new URL('/login', request.url);
-            loginUrl.searchParams.set('returnUrl', pathname);
-            return NextResponse.redirect(loginUrl);
-        }
-    }
+    // ════════════════════════════════════════════════════════════════════════
+    // CROSS-DOMAIN WARNING
+    // We cannot check for the 'accessToken' cookie here because Next.js
+    // middleware runs on the frontend domain (e.g. netlify.app), but the
+    // cookie is set by the backend domain (e.g. onrender.com).
+    // The browser strictly isolates cookies, so request.cookies.has('accessToken')
+    // will ALWAYS be false here in production, causing an infinite login loop.
+    //
+    // Protection is handled client-side via Axios interceptors and React Query.
+    // ════════════════════════════════════════════════════════════════════════
 
     return NextResponse.next();
 }

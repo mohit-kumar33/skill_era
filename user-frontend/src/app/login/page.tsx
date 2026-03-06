@@ -37,6 +37,7 @@ function LoginForm() {
                 password: data.password,
                 cfTurnstileResponse: data.cfTurnstileResponse,
             });
+            window.location.href = returnUrl;
         } catch (error: unknown) {
             const err = error as { response?: { status?: number; data?: { message?: string } } };
             if (err.response?.status === 401) {
