@@ -42,7 +42,7 @@ export const registerSchema = z.object({
 });
 
 export const loginSchema = z.object({
-    mobile: z.string().min(10).max(15),
+    identifier: z.string().min(1, 'Email or mobile number is required'),
     password: z.string().min(1),
     cfTurnstileResponse: z.string().min(1, 'Captcha verification required'),
 });

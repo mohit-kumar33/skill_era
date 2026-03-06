@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const loginSchema = z.object({
-    email: z.string().min(1, 'Email or Mobile is required'),
+    identifier: z.string().min(1, 'Email or Mobile is required'),
     password: z.string().min(1, 'Password is required'),
     cfTurnstileResponse: z.string().min(1, 'Captcha verification required'),
 });

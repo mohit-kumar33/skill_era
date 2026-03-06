@@ -193,7 +193,7 @@ export async function registerUser(input: RegisterInput, meta?: { ip?: string })
 // ── Login ──────────────────────────────────────────────────────────────
 
 /**
- * Authenticate user with mobile + password.
+ * Authenticate user with email/mobile + password.
  */
 export async function loginUser(
     input: LoginInput,
@@ -204,15 +204,21 @@ export async function loginUser(
         throw validationError('Invalid CAPTCHA validation. Please try again.');
     }
 
+    const identifier = input.identifier.trim();
+
     // ── Per-account lockout check ────────────────────────
-    if (await isAccountLocked(input.mobile)) {
+    if (await isAccountLocked(identifier)) {
         logLoginEvent(null, 'login_blocked', meta, 'account_locked');
         // Return generic error — don't reveal lockout
         throw unauthorized('Invalid credentials');
     }
 
-    const user = await prisma.user.findUnique({
-        where: { mobile: input.mobile },
+    // Determine if identifier is email or mobile
+    const isEmail = identifier.includes('@');
+    const user = await prisma.user.findFirst({
+        where: isEmail
+            ? { email: identifier }
+            : { mobile: identifier },
         select: {
             id: true,
             mobile: true,
@@ -226,7 +232,7 @@ export async function loginUser(
     });
 
     if (!user) {
-        await recordFailedLogin(input.mobile);
+        await recordFailedLogin(identifier);
         logLoginEvent(null, 'login_failed', meta, 'user_not_found');
         throw unauthorized('Invalid credentials');
     }
@@ -238,13 +244,13 @@ export async function loginUser(
 
     const isValid = await bcrypt.compare(input.password, user.passwordHash);
     if (!isValid) {
-        await recordFailedLogin(input.mobile);
+        await recordFailedLogin(identifier);
         logLoginEvent(user.id, 'login_failed', meta, 'wrong_password');
         throw unauthorized('Invalid credentials');
     }
 
     // Successful password check — clear lockout counter
-    await clearFailedLogins(input.mobile);
+    await clearFailedLogins(identifier);
 
     if (user.accountStatus === 'frozen') {
         throw new AppError(ERROR_CODES.ACCOUNT_FROZEN, 'Account is frozen. Contact support.', 403);

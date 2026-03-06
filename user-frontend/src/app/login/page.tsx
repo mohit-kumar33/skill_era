@@ -32,14 +32,15 @@ function LoginForm() {
             setLoading(true);
             setServerError('');
             await api.post('/auth/login', {
-                mobile: data.email,
-                password: data.password
+                identifier: data.identifier,
+                password: data.password,
+                cfTurnstileResponse: data.cfTurnstileResponse,
             });
             router.push(returnUrl);
         } catch (error: unknown) {
             const err = error as { response?: { status?: number; data?: { message?: string } } };
             if (err.response?.status === 401) {
-                setServerError('Invalid email or password');
+                setServerError('Invalid email/mobile or password');
             } else {
                 setServerError(err.response?.data?.message || 'Login failed. Please try again.');
             }
@@ -68,15 +69,15 @@ function LoginForm() {
                             Email or Mobile
                         </label>
                         <input
-                            {...register('email')}
+                            {...register('identifier')}
                             type="text"
                             disabled={loading || isSubmitting}
-                            className={`w-full px-4 py-2 rounded-xl border ${errors.email ? 'border-red-300' : 'border-gray-200'
+                            className={`w-full px-4 py-2 rounded-xl border ${errors.identifier ? 'border-red-300' : 'border-gray-200'
                                 } focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow`}
-                            placeholder="you@example.com"
+                            placeholder="you@example.com or mobile number"
                         />
-                        {errors.email && (
-                            <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>
+                        {errors.identifier && (
+                            <p className="text-red-500 text-xs mt-1">{errors.identifier.message}</p>
                         )}
                     </div>
 
