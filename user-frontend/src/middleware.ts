@@ -20,11 +20,6 @@ export function middleware(request: NextRequest) {
         }
     }
 
-    // Redirect / to /dashboard
-    if (pathname === '/') {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
-
     return NextResponse.next();
 }
 
