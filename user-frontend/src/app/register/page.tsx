@@ -61,9 +61,9 @@ export default function RegisterPage() {
             });
 
             if (res.data?.data?.profileIncomplete) {
-                router.push('/complete-profile');
+                window.location.href = '/complete-profile';
             } else {
-                router.push('/dashboard');
+                window.location.href = '/dashboard';
             }
         } catch (error: unknown) {
             const err = error as { response?: { status?: number; data?: { message?: string } } };

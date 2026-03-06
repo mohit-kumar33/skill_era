@@ -64,9 +64,9 @@ function LoginForm() {
             });
 
             if (res.data?.data?.profileIncomplete) {
-                router.push('/complete-profile');
+                window.location.href = '/complete-profile';
             } else {
-                router.push(returnUrl);
+                window.location.href = returnUrl;
             }
         } catch (error: unknown) {
             const err = error as { response?: { status?: number; data?: { message?: string } } };
