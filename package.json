@@ -33,7 +33,7 @@
     "google-auth-library": "^10.6.1",
     "ioredis": "^5.4.1",
     "jsonwebtoken": "^9.0.2",
-    "node-cron": "^3.0.3",
+    "node-cron": "^4.2.1",
     "nodemailer": "^8.0.1",
     "otplib": "^13.3.0",
     "pg": "^8.13.0",
