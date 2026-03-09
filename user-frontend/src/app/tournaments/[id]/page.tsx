@@ -135,22 +135,38 @@ export default function TournamentDetailPage() {
             setUploading(true);
             setUploadError('');
             setUploadSuccess('');
-            setUploadProgress(0);
+            setUploadProgress(10); // starting step 1
 
-            const formData = new FormData();
-            formData.append('screenshot', file);
-            formData.append('match_id', matchId.trim());
-            formData.append('tournament_id', id);
+            // Step 1: Get presigned URL mapping to the new endpoint
+            const presignedRes = await api.post(`/tournaments/${id}/result/presigned-url`, {
+                fileName: file.name,
+                contentType: file.type
+            });
 
-            await api.post('/tournaments/result/submit', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
+            const { url, signedUploadUrl } = presignedRes.data.data;
+
+            // Step 2: Upload directly to S3 (requires raw axios to avoid our interceptors sending tokens to S3)
+            const axios = (await import('axios')).default;
+            await axios.put(signedUploadUrl, file, {
+                headers: { 'Content-Type': file.type },
                 onUploadProgress: (progressEvent) => {
                     if (progressEvent.total) {
-                        setUploadProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total));
+                        // allocate 10% to 90% for the upload phase
+                        const percent = Math.round((progressEvent.loaded * 80) / progressEvent.total);
+                        setUploadProgress(10 + percent);
                     }
                 },
             });
 
+            setUploadProgress(95);
+
+            // Step 3: Inform our backend that upload is complete
+            await api.post(`/tournaments/${id}/result/upload`, {
+                matchId: matchId.trim(),
+                screenshotUrl: url
+            });
+
+            setUploadProgress(100);
             setUploadSuccess('Result submitted! It is now under review.');
             setFile(null);
             setMatchId('');
@@ -161,7 +177,7 @@ export default function TournamentDetailPage() {
             setUploadError(err.response?.data?.message || 'Upload failed. Please try again.');
         } finally {
             setUploading(false);
-            setUploadProgress(0);
+            setTimeout(() => setUploadProgress(0), 1000);
         }
     };
 

@@ -4,6 +4,10 @@ import { prisma } from '../../config/prisma.js';
 import { runInTransaction } from '../../utils/transaction.js';
 import { withRetry } from '../../utils/retry.js';
 import { logger } from '../../utils/logger.js';
+import jwt, { type JwtPayload } from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
+import { env } from '../../config/env.js';
+import { BCRYPT_ROUNDS } from '../../config/constants.js';
 import {
     insufficientBalance,
     kycRequired,
@@ -11,6 +15,7 @@ import {
     accountFrozen,
     duplicateRequest,
     notFound,
+    unauthorized,
     AppError,
     ERROR_CODES,
 } from '../../utils/errors.js';
@@ -23,6 +28,7 @@ import { calculateTds } from './tds.service.js';
 import { runAmlChecks } from '../../middleware/amlDetection.js';
 import { notifyWithdrawalRequested } from '../notification/notification.service.js';
 import type { DepositInitiateInput, WithdrawRequestInput } from './wallet.schema.js';
+import { createCashfreeOrder } from '../../utils/cashfree.js';
 
 // ═══════════════════════════════════════════════════════
 // DEPOSIT INITIATION
@@ -33,6 +39,7 @@ interface DepositResult {
     amount: string;
     status: string;
     idempotencyKey: string;
+    paymentUrl?: string;
 }
 
 /**
@@ -74,13 +81,34 @@ export async function initiateDeposit(
         },
     });
 
-    logger.info({ userId, depositId: deposit.id, amount: input.amount }, 'Deposit initiated');
+    logger.info({ userId, depositId: deposit.id, amount: input.amount }, 'Deposit record created');
+
+    let paymentUrl = '';
+    try {
+        paymentUrl = await createCashfreeOrder({
+            orderId: deposit.id,
+            amount: Number(input.amount),
+            customerId: userId,
+            customerPhone: '9999999999', // Can be fetched from user record if needed
+        });
+    } catch (error) {
+        // If Cashfree fails, mark deposit as failed
+        await prisma.deposit.update({
+            where: { id: deposit.id },
+            data: { status: 'failed' },
+        });
+        throw new AppError(ERROR_CODES.INTERNAL_ERROR, 'Payment gateway initialization failed', 500);
+    }
+
+    // Optionally update deposit with session id (if needed) but we return it to client
+    logger.info({ userId, depositId: deposit.id, paymentUrl }, 'Deposit initiated');
 
     return {
         depositId: deposit.id,
         amount: deposit.amount.toString(),
         status: deposit.status,
         idempotencyKey: deposit.idempotencyKey,
+        paymentUrl,
     };
 }
 
@@ -222,8 +250,41 @@ export async function confirmDeposit(
 }
 
 // ═══════════════════════════════════════════════════════
-// WITHDRAWAL REQUEST
+// WITHDRAWAL REQUEST & OTP
 // ═══════════════════════════════════════════════════════
+
+/**
+ * Generates an OTP for withdrawal verification and sends it to the user.
+ * Returns a short-lived pre-auth token required for the actual withdrawal request.
+ */
+export async function generateWithdrawalOtp(userId: string): Promise<{ preAuthToken: string }> {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, mobile: true, email: true },
+    });
+    if (!user) throw notFound('User');
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const hashedOtp = await bcrypt.hash(otp, BCRYPT_ROUNDS);
+    const expiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+    await prisma.user.update({
+        where: { id: user.id },
+        data: { currentOtp: hashedOtp, otpExpiry: expiry },
+    });
+
+    const otpTarget = user.email || user.mobile || 'unknown';
+    logger.info(`[MOCK WITHDRAW OTP] Sending OTP ${otp} to ${otpTarget}`);
+    console.log(`\n=========================================\n[MOCK WITHDRAW OTP] OTP for ${otpTarget}: ${otp}\n=========================================\n`);
+
+    const preAuthToken = jwt.sign(
+        { userId: user.id, type: 'withdraw_otp' },
+        env.JWT_ACCESS_SECRET,
+        { expiresIn: '5m' }
+    );
+
+    return { preAuthToken };
+}
 
 interface WithdrawalResult {
     withdrawalId: string;
@@ -257,9 +318,33 @@ export async function requestWithdrawal(
             accountStatus: true,
             kycStatus: true,
             fraudScore: true,
+            currentOtp: true,
+            otpExpiry: true,
         },
     });
     if (!user) throw notFound('User');
+
+    // ── OTP Verification ──
+    let decoded: JwtPayload & { type: string, userId: string };
+    try {
+        decoded = jwt.verify(input.preAuthToken, env.JWT_ACCESS_SECRET) as JwtPayload & { type: string, userId: string };
+    } catch {
+        throw unauthorized('Pre-auth token expired or invalid. Please request a new OTP.');
+    }
+
+    if (decoded.type !== 'withdraw_otp' || decoded.userId !== userId) {
+        throw unauthorized('Invalid token for withdrawal verification');
+    }
+
+    if (!user.currentOtp || !user.otpExpiry || user.otpExpiry < new Date()) {
+        throw unauthorized('OTP has expired or was not requested. Please request a new OTP.');
+    }
+
+    const isValidOtp = await bcrypt.compare(input.otp, user.currentOtp);
+    if (!isValidOtp) {
+        throw unauthorized('Invalid OTP');
+    }
+
     if (user.accountStatus !== 'active') throw accountFrozen();
     if (user.kycStatus !== 'verified') throw kycRequired();
 
@@ -318,6 +403,9 @@ export async function requestWithdrawal(
     // ── Atomic deduction (raw pg + CTE) ─────────────────
     return withRetry(async () => {
         return runInTransaction(pool, async (client: PoolClient) => {
+            // Check if user still exists within transaction
+            await client.query(`UPDATE users SET current_otp = NULL, otp_expiry = NULL WHERE id = $1`, [userId]);
+
             // CTE: lock wallet → check balance → deduct → insert ledger → create withdrawal
             const result = await client.query(
                 `WITH wallet_lock AS (
@@ -368,7 +456,7 @@ export async function requestWithdrawal(
           INSERT INTO withdrawals (
             id, user_id, amount, status,
             fraud_score_snapshot, tds_amount, net_amount,
-            idempotency_key, created_at
+            idempotency_key, payout_method, payout_details, created_at
           )
           SELECT
             gen_random_uuid(),
@@ -379,6 +467,8 @@ export async function requestWithdrawal(
             $5::numeric,
             $6::numeric,
             $3,
+            $7,
+            $8::json,
             now()
           FROM wallet_deduct wd
           RETURNING id, amount, tds_amount, net_amount, status
@@ -398,6 +488,12 @@ export async function requestWithdrawal(
                     user.fraudScore,
                     tds.tdsAmount,
                     tds.netPayable,
+                    input.payoutMethod,
+                    JSON.stringify({
+                        bankAccount: input.bankAccount,
+                        ifsc: input.ifsc,
+                        upiId: input.upiId
+                    }),
                 ],
             );
 
@@ -504,6 +600,52 @@ export async function getTransactionHistory(
             creditAmount: t.creditAmount.toString(),
             balanceBefore: t.balanceBefore.toString(),
             balanceAfter: t.balanceAfter.toString(),
+        })),
+        pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit),
+        },
+    };
+}
+
+export async function getWithdrawalHistory(
+    userId: string,
+    page: number = 1,
+    limit: number = 20,
+) {
+    const skip = (page - 1) * limit;
+
+    const [withdrawals, total] = await Promise.all([
+        prisma.withdrawal.findMany({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take: limit,
+            select: {
+                id: true,
+                amount: true,
+                tdsAmount: true,
+                netAmount: true,
+                status: true,
+                payoutMethod: true,
+                payoutDetails: true,
+                payoutError: true,
+                createdAt: true,
+                processedAt: true,
+            },
+        }),
+        prisma.withdrawal.count({ where: { userId } }),
+    ]);
+
+    return {
+        withdrawals: withdrawals.map(w => ({
+            ...w,
+            amount: w.amount.toString(),
+            tdsAmount: w.tdsAmount.toString(),
+            netAmount: w.netAmount?.toString() ?? null,
+            // Exclude sensitive numbers if necessary, but returning them since it's the user's own data
         })),
         pagination: {
             page,

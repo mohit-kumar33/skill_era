@@ -1,12 +1,32 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
 import { adminGuard } from '../../middleware/adminGuard.js';
-import { submitKycSchema, verifyKycSchema } from './kyc.schema.js';
+import { submitKycSchema, verifyKycSchema, presignedUrlSchema } from './kyc.schema.js';
 import { submitKyc, verifyKyc, getKycStatus } from './kyc.service.js';
 import { successResponse, validationError, unauthorized } from '../../utils/errors.js';
+import { generateUploadUrl } from '../../utils/storage.service.js';
 
 export async function kycRoutes(app: FastifyInstance): Promise<void> {
     app.addHook('onRequest', authenticate);
+
+    // ── POST /presigned-url ───────────────────────────────
+    app.post('/presigned-url', async (request, reply) => {
+        if (!request.currentUser) throw unauthorized();
+
+        const parsed = presignedUrlSchema.safeParse(request.body);
+        if (!parsed.success) {
+            throw validationError(parsed.error.errors.map(e => e.message).join(', '));
+        }
+
+        const result = await generateUploadUrl(
+            'kyc-documents',
+            request.currentUser.userId,
+            parsed.data.fileName,
+            parsed.data.contentType
+        );
+
+        return reply.send(successResponse(result, 'Upload URL generated'));
+    });
 
     // ── POST /submit ──────────────────────────────────────
     app.post('/submit', async (request, reply) => {

@@ -59,4 +59,17 @@ export const googleAuthSchema = z.object({
     idToken: z.string().min(1, 'Google ID token is required'),
 });
 
+export const sendOtpSchema = z.object({
+    identifier: z.string().min(1, 'Email or mobile number is required'),
+    cfTurnstileResponse: z.string().min(1, 'Captcha verification required'),
+});
+
+export const verifyOtpSchema = z.object({
+    preAuthToken: z.string().min(1, 'Pre-auth token is required'),
+    otp: z.string().length(6, 'OTP must be 6 digits').regex(/^\d{6}$/, 'OTP must be a 6-digit number'),
+});
+
+export type SendOtpInput = z.infer<typeof sendOtpSchema>;
+export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
+
 export type GoogleAuthInput = z.infer<typeof googleAuthSchema>;

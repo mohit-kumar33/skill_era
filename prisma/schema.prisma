@@ -138,6 +138,10 @@ model User {
   fraudScore        Int           @default(0) @map("fraud_score")
   role              UserRole      @default(user)
   state             String?       @db.VarChar(50)
+  
+  /// OTP fields for Email/Mobile login
+  currentOtp        String?       @map("current_otp") @db.Text
+  otpExpiry         DateTime?     @map("otp_expiry") @db.Timestamptz()
 
   /// 2FA: stored encrypted (AES-256-GCM). twoFactorSecret kept for migration window — drop after running migrate_encrypt_fields.ts
   twoFactorSecret   String?       @map("two_factor_secret") @db.VarChar(100) // DEPRECATED
@@ -268,6 +272,8 @@ model Withdrawal {
   adminApprovedBy     String?           @map("admin_approved_by") @db.Uuid
   dualApprovedBy      String?           @map("dual_approved_by") @db.Uuid
   adminNotes          String?           @map("admin_notes") @db.Text
+  payoutMethod        String            @map("payout_method") @db.VarChar(50) @default("bank_transfer")
+  payoutDetails       Json              @map("payout_details") @default("{}")
   gatewayPayoutId     String?           @map("gateway_payout_id") @db.VarChar(255)
   idempotencyKey      String            @unique @map("idempotency_key") @db.VarChar(255)
   /// UUID v4 generated at payout execution — UNIQUE constraint prevents double-payout

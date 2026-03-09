@@ -1,11 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
-import { depositInitiateSchema, withdrawRequestSchema } from './wallet.schema.js';
+import { depositInitiateSchema, withdrawRequestSchema, withdrawOtpSchema } from './wallet.schema.js';
 import {
     initiateDeposit,
     requestWithdrawal,
+    generateWithdrawalOtp,
     getBalance,
     getTransactionHistory,
+    getWithdrawalHistory,
 } from './wallet.service.js';
 import { successResponse, validationError, unauthorized } from '../../utils/errors.js';
 import { RATE_LIMITS } from '../../config/constants.js';
@@ -36,8 +38,24 @@ export async function walletRoutes(app: FastifyInstance): Promise<void> {
         return reply.status(201).send(successResponse(result, 'Deposit initiated'));
     });
 
-    // ── POST /withdraw ────────────────────────────────────
-    app.post('/withdraw', {
+    // ── POST /withdraw/request-otp ────────────────────────
+    app.post('/withdraw/request-otp', {
+        config: { rateLimit: RATE_LIMITS.withdrawal },
+    }, async (request, reply) => {
+        if (!request.currentUser) throw unauthorized();
+
+        // Optional: validate minimum amount early before sending OTP
+        const parsed = withdrawOtpSchema.safeParse(request.body);
+        if (!parsed.success) {
+            throw validationError(parsed.error.errors.map(e => e.message).join(', '));
+        }
+
+        const result = await generateWithdrawalOtp(request.currentUser.userId);
+        return reply.status(200).send(successResponse(result, 'OTP sent for withdrawal verification'));
+    });
+
+    // ── POST /withdraw/request ────────────────────────────
+    app.post('/withdraw/request', {
         config: { rateLimit: RATE_LIMITS.withdrawal },
     }, async (request, reply) => {
         if (!request.currentUser) throw unauthorized();
@@ -67,6 +85,18 @@ export async function walletRoutes(app: FastifyInstance): Promise<void> {
         const limit = Math.min(100, Math.max(1, parseInt(query.limit ?? '20', 10)));
 
         const history = await getTransactionHistory(request.currentUser.userId, page, limit);
+        return reply.send(successResponse(history));
+    });
+
+    // ── GET /withdraw/status ──────────────────────────────
+    app.get('/withdraw/status', async (request, reply) => {
+        if (!request.currentUser) throw unauthorized();
+
+        const query = request.query as { page?: string; limit?: string };
+        const page = Math.max(1, parseInt(query.page ?? '1', 10));
+        const limit = Math.min(100, Math.max(1, parseInt(query.limit ?? '20', 10)));
+
+        const history = await getWithdrawalHistory(request.currentUser.userId, page, limit);
         return reply.send(successResponse(history));
     });
 

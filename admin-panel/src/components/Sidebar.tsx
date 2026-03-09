@@ -10,6 +10,7 @@ import {
     ShieldCheck,
     ScrollText,
     LogOut,
+    FileText,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useRouter } from 'next/navigation';
@@ -20,6 +21,7 @@ const navItems = [
     { href: '/tournaments', label: 'Tournaments', icon: Trophy },
     { href: '/withdrawals', label: 'Withdrawals', icon: Wallet },
     { href: '/kyc', label: 'KYC', icon: ShieldCheck },
+    { href: '/reports', label: 'Reports & Compliance', icon: FileText },
     { href: '/audit-log', label: 'Audit Log', icon: ScrollText },
 ];
 
@@ -55,8 +57,8 @@ export default function Sidebar() {
                             key={item.href}
                             href={item.href}
                             className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${isActive
-                                    ? 'bg-indigo-600/20 text-indigo-400'
-                                    : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200'
+                                ? 'bg-indigo-600/20 text-indigo-400'
+                                : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200'
                                 }`}
                         >
                             <item.icon className="h-4 w-4" />

@@ -17,6 +17,7 @@ import type {
     CreateTournamentInput,
     JoinTournamentInput,
     SubmitResultInput,
+    UserSubmitResultInput,
 } from './tournaments.schema.js';
 
 // ═══════════════════════════════════════════════════════
@@ -110,7 +111,7 @@ export async function getTournament(tournamentId: string) {
 // JOIN TOURNAMENT (with entry fee deduction)
 // ═══════════════════════════════════════════════════════
 
-export async function joinTournament(userId: string, input: JoinTournamentInput, ipAddress?: string) {
+export async function joinTournament(userId: string, input: { tournamentId: string; idempotencyKey: string }, ipAddress?: string) {
     // Pre-checks
     const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -445,4 +446,51 @@ export async function submitResultAndDistributePrize(
             };
         });
     });
+}
+// ... adding to the bottom of tournaments.service.ts
+export async function submitTournamentResult(
+    userId: string,
+    tournamentId: string,
+    input: UserSubmitResultInput
+) {
+    const tournament = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        include: {
+            participants: {
+                where: { userId }
+            }
+        }
+    });
+
+    if (!tournament) throw notFound('Tournament');
+    if (tournament.participants.length === 0) {
+        throw validationError('You are not a participant in this tournament');
+    }
+
+    // Check if result already submitted
+    const existingResult = await prisma.matchResult.findFirst({
+        where: { tournamentId, userId }
+    });
+
+    if (existingResult) {
+        throw validationError('You have already submitted a result for this tournament');
+    }
+
+    const matchResult = await prisma.matchResult.create({
+        data: {
+            tournamentId,
+            userId,
+            externalMatchId: input.matchId,
+            screenshotUrl: input.screenshotUrl,
+            status: 'submitted'
+        }
+    });
+
+    logger.info({ userId, tournamentId, matchResultId: matchResult.id }, 'User submitted tournament result');
+
+    return {
+        id: matchResult.id,
+        status: matchResult.status,
+        createdAt: matchResult.createdAt
+    };
 }

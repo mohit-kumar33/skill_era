@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import crypto from 'crypto';
-import { registerSchema, loginSchema, refreshSchema, googleAuthSchema } from './auth.schema.js';
+import { registerSchema, loginSchema, refreshSchema, googleAuthSchema, verifyOtpSchema } from './auth.schema.js';
 import { googleLogin } from './google.service.js';
 import {
     registerUser,
@@ -12,6 +12,7 @@ import {
     disable2FA,
     completeAdmin2FALogin,
     resetTotpLockout,
+    verifyOtpLogin,
 } from './auth.service.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { successResponse, validationError } from '../../utils/errors.js';
@@ -96,6 +97,15 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             }, 'Password verified. 2FA token required.'));
         }
 
+        // If OTP verification required (mandatory for all users)
+        if (result.requiresOTP) {
+            return reply.status(200).send(successResponse({
+                requiresOTP: true,
+                preAuthToken: result.tokens.accessToken,
+                user: { id: result.user.id, email: result.user.email, mobile: result.user.mobile },
+            }, 'Password verified. OTP sent to your email/mobile.'));
+        }
+
         // Set httpOnly cookies for web clients
         setAuthCookies(reply, result.tokens.accessToken, result.tokens.refreshToken);
         const csrfToken = setCsrfCookie(reply);
@@ -120,6 +130,26 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         const csrfToken = setCsrfCookie(reply);
 
         return reply.status(200).send(successResponse({ ...result, csrfToken }, 'Google Login successful'));
+    });
+
+    // ── POST /verify-otp ──────────────────────────────────
+    // Step 2 of mandatory 2FA: User submits OTP after password verification
+    app.post('/verify-otp', {
+        config: { rateLimit: RATE_LIMITS.login },
+    }, async (request, reply) => {
+        const parsed = verifyOtpSchema.safeParse(request.body);
+        if (!parsed.success) {
+            throw validationError(parsed.error.errors.map(e => e.message).join(', '));
+        }
+
+        const meta = { ip: request.ip, userAgent: request.headers['user-agent'] ?? 'unknown' };
+        const result = await verifyOtpLogin(parsed.data.preAuthToken, parsed.data.otp, meta);
+
+        // Set httpOnly cookies
+        setAuthCookies(reply, result.tokens.accessToken, result.tokens.refreshToken);
+        const csrfToken = setCsrfCookie(reply);
+
+        return reply.status(200).send(successResponse({ ...result, csrfToken }, 'OTP verified. Login successful.'));
     });
 
     // ── POST /login/verify-2fa ────────────────────────────

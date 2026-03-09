@@ -132,6 +132,7 @@ interface AuthResult {
     };
     tokens: AuthTokens;
     requires2FA?: boolean;   // True when admin has 2FA enabled but hasn't verified yet
+    requiresOTP?: boolean;   // True when password verified but OTP step pending
 }
 
 // ── Registration ───────────────────────────────────────────────────────
@@ -264,10 +265,8 @@ export async function loginUser(
 
     // ── Admin 2FA enforcement (L5) ───────────────────────
     // If admin role + 2FA enabled → require TOTP before issuing tokens.
-    // Return a partial result with requires2FA flag.
     // The frontend must then call POST /auth/login/verify-2fa with the TOTP token.
     if (ADMIN_ROLES.includes(user.role) && user.twoFaEnabled) {
-        // Issue a short-lived pre-auth token (no cookies set yet)
         const preAuthToken = jwt.sign(
             { userId: user.id, role: user.role, type: 'pre_auth_2fa' },
             env.JWT_ACCESS_SECRET,
@@ -290,10 +289,31 @@ export async function loginUser(
         };
     }
 
-    // ── Login audit logging ──────────────────────────────
-    logLoginEvent(user.id, 'login', meta);
+    // ── Mandatory OTP for ALL users ──────────────────────
+    // Password verified → generate OTP → return pre-auth token.
+    // The frontend must call POST /auth/verify-otp with the pre-auth token + OTP.
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const hashedOtp = await bcrypt.hash(otp, BCRYPT_ROUNDS);
+    const expiry = new Date(Date.now() + 5 * 60 * 1000); // 5 min
 
-    const tokens = await issueTokens({ userId: user.id, role: user.role });
+    await prisma.user.update({
+        where: { id: user.id },
+        data: { currentOtp: hashedOtp, otpExpiry: expiry },
+    });
+
+    // Mock send OTP (replace with real SMS/email in production)
+    const otpTarget = user.email || user.mobile || identifier;
+    logger.info(`[MOCK OTP] Sending OTP ${otp} to ${otpTarget}`);
+    console.log(`\n=========================================\n[MOCK OTP] OTP for ${otpTarget}: ${otp}\n=========================================\n`);
+
+    const preAuthOtpToken = jwt.sign(
+        { userId: user.id, role: user.role, type: 'pre_auth_otp' },
+        env.JWT_ACCESS_SECRET,
+        { expiresIn: '5m' },
+    );
+
+    logLoginEvent(user.id, 'login_otp_sent', meta);
+
     return {
         user: {
             id: user.id,
@@ -303,7 +323,8 @@ export async function loginUser(
             accountStatus: user.accountStatus,
             kycStatus: user.kycStatus,
         },
-        tokens,
+        tokens: { accessToken: preAuthOtpToken, refreshToken: '' },
+        requiresOTP: true,
     };
 }
 
@@ -700,7 +721,7 @@ export async function resetTotpLockout(adminId: string, targetUserId: string): P
 
 function logLoginEvent(
     userId: string | null,
-    event: 'login' | 'login_2fa_complete' | 'logout' | 'login_failed' | 'login_blocked',
+    event: 'login' | 'login_2fa_complete' | 'login_otp_sent' | 'login_otp_complete' | 'logout' | 'login_failed' | 'login_blocked',
     meta?: { ip?: string; userAgent?: string },
     failureReason?: string,
 ): void {
@@ -767,4 +788,133 @@ export async function issueTokens(payload: JwtPayload, replacesTokenId?: string)
     }
 
     return { accessToken, refreshToken };
+}
+
+// ── OTP Login ─────────────────────────────────────────────────────────
+
+export async function generateAndSendOtp(identifier: string, turnstileToken: string, meta: { ip: string }): Promise<void> {
+    // 1. Verify Turnstile
+    if (env.NODE_ENV === 'production' || turnstileToken !== '1x00000000000000000000AA') {
+        const captchaValid = await verifyTurnstile(turnstileToken, meta.ip);
+        if (!captchaValid) {
+            throw validationError('Invalid CAPTCHA validation. Please try again.');
+        }
+    }
+
+    // 2. Rate limit (borrowing the lockout logic)
+    if (await isAccountLocked(identifier)) {
+        throw new AppError(ERROR_CODES.RATE_LIMITED, 'Too many requests. Please try again later.', 429);
+    }
+
+    // 3. Find user
+    const user = await prisma.user.findFirst({
+        where: {
+            OR: [
+                { email: identifier },
+                { mobile: identifier },
+            ],
+            accountStatus: { notIn: ['banned', 'deleted'] }
+        }
+    });
+
+    if (!user) {
+        // Anti-enumeration: don't reveal if user exists, just pretend we sent it
+        await recordFailedLogin(identifier);
+        return;
+    }
+
+    // Check self-exclusion
+    if (user.selfExclusionUntil && user.selfExclusionUntil > new Date()) {
+        throw new AppError(ERROR_CODES.ACCOUNT_FROZEN, 'Account is currently under self-exclusion.', 403);
+    }
+
+    // 4. Generate 6 digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // 5. Hash OTP before saving to DB
+    const hashedOtp = await bcrypt.hash(otp, BCRYPT_ROUNDS);
+
+    // 6. Set expiry (5 minutes)
+    const expiry = new Date(Date.now() + 5 * 60 * 1000);
+
+    // 7. Save to DB
+    await prisma.user.update({
+        where: { id: user.id },
+        data: {
+            currentOtp: hashedOtp,
+            otpExpiry: expiry
+        }
+    });
+
+    // 8. Mock sending OTP
+    logger.info(`[MOCK EMAIL/SMS] Sending OTP ${otp} to ${identifier}`);
+    console.log(`\n\n=========================================\n[MOCK EMAIL/SMS] Sending OTP ${otp} to ${identifier}\n=========================================\n\n`);
+}
+
+export async function verifyOtpLogin(preAuthToken: string, otp: string, meta: { ip: string, userAgent: string }): Promise<AuthResult> {
+    // 1. Verify the pre-auth token
+    let decoded: JwtPayload & { type: string };
+    try {
+        decoded = jwt.verify(preAuthToken, env.JWT_ACCESS_SECRET) as JwtPayload & { type: string };
+    } catch {
+        throw unauthorized('OTP session expired. Please login again.');
+    }
+
+    if (decoded.type !== 'pre_auth_otp') {
+        throw unauthorized('Invalid OTP session token.');
+    }
+
+    const userId = decoded.userId as string;
+
+    if (await isAccountLocked(userId)) {
+        throw new AppError(ERROR_CODES.RATE_LIMITED, 'Too many attempts. Account temporarily locked.', 429);
+    }
+
+    // 2. Look up the user by ID from the token
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+    });
+
+    if (!user) {
+        throw unauthorized('Invalid OTP or session.');
+    }
+
+    if (user.accountStatus === 'banned' || user.accountStatus === 'deleted') {
+        throw unauthorized('Account is not accessible.');
+    }
+
+    // 3. Check OTP validity
+    if (!user.currentOtp || !user.otpExpiry || user.otpExpiry < new Date()) {
+        await recordFailedLogin(userId);
+        throw unauthorized('OTP is invalid or has expired. Please login again.');
+    }
+
+    const isValid = await bcrypt.compare(otp, user.currentOtp);
+    if (!isValid) {
+        await recordFailedLogin(userId);
+        throw unauthorized('Invalid OTP.');
+    }
+
+    // 4. Clear OTP fields and failed logins
+    await prisma.user.update({
+        where: { id: user.id },
+        data: { currentOtp: null, otpExpiry: null },
+    });
+    await clearFailedLogins(userId);
+
+    // 5. Issue real JWT tokens
+    logLoginEvent(user.id, 'login_otp_complete', meta);
+    const tokens = await issueTokens({ userId: user.id, role: user.role });
+
+    return {
+        user: {
+            id: user.id,
+            mobile: user.mobile,
+            email: user.email,
+            role: user.role,
+            accountStatus: user.accountStatus,
+            kycStatus: user.kycStatus,
+        },
+        tokens,
+    };
 }

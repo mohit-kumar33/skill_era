@@ -2,6 +2,7 @@
 export interface WalletBalance {
     deposit_balance: number;
     winning_balance: number;
+    bonus_balance: number;
     total_balance: number;
 }
 

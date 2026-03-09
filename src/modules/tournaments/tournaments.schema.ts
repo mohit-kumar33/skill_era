@@ -22,7 +22,6 @@ export const createTournamentSchema = z.object({
 });
 
 export const joinTournamentSchema = z.object({
-    tournamentId: z.string().uuid(),
     idempotencyKey: z
         .string()
         .min(5)
@@ -37,6 +36,18 @@ export const submitResultSchema = z.object({
     externalMatchId: z.string().optional(),
 });
 
+export const presignedUrlSchema = z.object({
+    fileName: z.string().min(1).max(255),
+    contentType: z.string().regex(/^image\/(jpeg|png)$/, "Only JPEG and PNG images are allowed."),
+});
+
+export const userSubmitResultSchema = z.object({
+    matchId: z.string().min(1, "Match ID is required"),
+    screenshotUrl: z.string().url("Valid screenshot URL is required"),
+});
+
 export type CreateTournamentInput = z.infer<typeof createTournamentSchema>;
 export type JoinTournamentInput = z.infer<typeof joinTournamentSchema>;
 export type SubmitResultInput = z.infer<typeof submitResultSchema>;
+export type PresignedUrlInput = z.infer<typeof presignedUrlSchema>;
+export type UserSubmitResultInput = z.infer<typeof userSubmitResultSchema>;

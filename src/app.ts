@@ -25,6 +25,7 @@ import { tournamentRoutes } from './modules/tournaments/tournaments.routes.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
 import { kycRoutes } from './modules/kyc/kyc.routes.js';
 import { metricsRoutes } from './modules/internal/metrics.routes.js';
+import { dashboardRoutes } from './modules/dashboard/dashboard.routes.js';
 
 export async function buildApp() {
     const app = Fastify({
@@ -192,6 +193,7 @@ export async function buildApp() {
         await api.register(walletRoutes, { prefix: '/wallet' });
         await api.register(tournamentRoutes, { prefix: '/tournaments' });
         await api.register(kycRoutes, { prefix: '/kyc' });
+        await api.register(dashboardRoutes, { prefix: '/dashboard' });
 
         // Admin routes — enforce admin-only CORS origins
         await api.register(async (adminScope) => {
